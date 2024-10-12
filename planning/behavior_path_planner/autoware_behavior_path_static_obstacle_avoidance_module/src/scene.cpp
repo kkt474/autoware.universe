@@ -192,26 +192,26 @@ bool StaticObstacleAvoidanceModule::canTransitSuccessState()
 
   return data.state == AvoidanceState::CANCEL || data.state == AvoidanceState::SUCCEEDED;
 }
-
+// 过滤
 void StaticObstacleAvoidanceModule::fillFundamentalData(
   AvoidancePlanningData & data, DebugData & debug)
 {
-  universe_utils::ScopedTimeTrack st(__func__, *time_keeper_);
+  universe_utils::ScopedTimeTrack st(__func__, *time_keeper_);  // 用于跟踪此函数执行时间
   // reference pose
   data.reference_pose =
-    utils::getUnshiftedEgoPose(getEgoPose(), helper_->getPreviousSplineShiftPath());
+    utils::getUnshiftedEgoPose(getEgoPose(), helper_->getPreviousSplineShiftPath());// 获取当前自车的参考姿态
 
   // lanelet info
   data.current_lanelets = utils::static_obstacle_avoidance::getCurrentLanesFromPath(
-    getPreviousModuleOutput().reference_path, planner_data_);
+    getPreviousModuleOutput().reference_path, planner_data_);  // 从前一个模块的输出中获取当前车道信息
 
   data.extend_lanelets = utils::static_obstacle_avoidance::getExtendLanes(
-    data.current_lanelets, getEgoPose(), planner_data_);
+    data.current_lanelets, getEgoPose(), planner_data_);  // 获取扩展的车道信息
 
   // expand drivable lanes
   const auto is_within_current_lane =
-    utils::static_obstacle_avoidance::isWithinLanes(data.current_lanelets, planner_data_);
-  const auto red_signal_lane_itr = std::find_if(
+    utils::static_obstacle_avoidance::isWithinLanes(data.current_lanelets, planner_data_);  // 检查自车是否在当前车道内
+  const auto red_signal_lane_itr = std::find_if(  // 查找当前车道中是否有红绿灯信号的车道
     data.current_lanelets.begin(), data.current_lanelets.end(), [&](const auto & lanelet) {
       if (utils::traffic_light::isTrafficSignalStop({lanelet}, planner_data_)) {
         return true;
@@ -219,9 +219,10 @@ void StaticObstacleAvoidanceModule::fillFundamentalData(
       const auto next_lanes = planner_data_->route_handler->getNextLanelets(lanelet);
       return utils::traffic_light::isTrafficSignalStop(next_lanes, planner_data_);
     });
+    // 判断是否应该使用相邻车道
   const auto not_use_adjacent_lane =
     is_within_current_lane && red_signal_lane_itr != data.current_lanelets.end();
-
+   // 遍历当前车道，生成可行驶的车道数据，考虑到红灯和相邻车道的情况
   std::for_each(
     data.current_lanelets.begin(), data.current_lanelets.end(), [&](const auto & lanelet) {
       if (!not_use_adjacent_lane) {
@@ -240,30 +241,36 @@ void StaticObstacleAvoidanceModule::fillFundamentalData(
     });
 
   // calc drivable bound
+  // 计算可行驶边界，首先获取前一个模块的路径并去除重叠的车道
   auto tmp_path = getPreviousModuleOutput().path;
   const auto shorten_lanes = utils::cutOverlappedLanes(tmp_path, data.drivable_lanes);
+  // 判断是否使用左侧虚线区域
   const auto use_left_side_hatched_road_marking_area = [&]() {
     if (!not_use_adjacent_lane) {
       return true;
     }
     return !planner_data_->route_handler->getRoutingGraphPtr()->left(*red_signal_lane_itr);
   }();
+  // 判断是否使用右侧虚线区域
   const auto use_right_side_hatched_road_marking_area = [&]() {
     if (!not_use_adjacent_lane) {
       return true;
     }
     return !planner_data_->route_handler->getRoutingGraphPtr()->right(*red_signal_lane_itr);
   }();
+  // 计算左边界并存储到 data.left_bound
   data.left_bound = utils::calcBound(
     getPreviousModuleOutput().path, planner_data_, shorten_lanes,
     use_left_side_hatched_road_marking_area, parameters_->use_intersection_areas,
     parameters_->use_freespace_areas, true);
+  // 计算右边界并存储到 data.right_bound
   data.right_bound = utils::calcBound(
     getPreviousModuleOutput().path, planner_data_, shorten_lanes,
     use_right_side_hatched_road_marking_area, parameters_->use_intersection_areas,
     parameters_->use_freespace_areas, false);
 
   // reference path
+  // 检查自车是否在同一车道上，如果是，则扩展路径，否则使用前一个模块的路径，并记录警告信息
   if (isDrivingSameLane(helper_->getPreviousDrivingLanes(), data.current_lanelets)) {
     data.reference_path_rough = extendBackwardLength(getPreviousModuleOutput().path);
   } else {
@@ -272,40 +279,47 @@ void StaticObstacleAvoidanceModule::fillFundamentalData(
   }
 
   // resampled reference path
+  // 对参考路径进行重采样
   data.reference_path = utils::resamplePathWithSpline(
     data.reference_path_rough, parameters_->resample_interval_for_planning);
 
   // closest index
+  // 查找自车在路径上的最近索引并存储
   data.ego_closest_path_index = planner_data_->findEgoIndex(data.reference_path.points);
 
   // arclength from ego pose (used in many functions)
+  // 计算自车姿态到路径的弧长并存储
   data.arclength_from_ego = utils::calcPathArcLengthArray(
     data.reference_path, 0, data.reference_path.points.size(),
     autoware::motion_utils::calcSignedArcLength(data.reference_path.points, getEgoPosition(), 0));
-
+  // 计算返回路线的距离并保存
   data.to_return_point = utils::static_obstacle_avoidance::calcDistanceToReturnDeadLine(
     data.current_lanelets, data.reference_path_rough, planner_data_, parameters_);
-
+  // 计算避开起始线的距离并保存
   data.to_start_point = utils::static_obstacle_avoidance::calcDistanceToAvoidStartLine(
     data.current_lanelets, data.reference_path_rough, planner_data_, parameters_);
-
+  // 填充最新检测到的避障目标对象
   // filter only for the latest detected objects.
   fillAvoidanceTargetObjects(data, debug);
 
   // compensate lost object which was avoidance target. if the time hasn't passed more than
   // threshold since perception module lost the target yet, this module keeps it as avoidance
   // target.
+  // 补偿丢失的避障目标对象，若感知模块在阈值时间内未检测到目标则继续视其为避障目标
   utils::static_obstacle_avoidance::compensateLostTargetObjects(
     registered_objects_, data, clock_->now(), planner_data_, parameters_);
 
   // once an object filtered for boundary clipping, this module keeps the information until the end
   // of execution.
+  // 更新被剪切对象的信息，保持到执行结束
   utils::static_obstacle_avoidance::updateClipObject(clip_objects_, data);
 
   // calculate various data for each target objects.
+  // 为每个目标对象计算各种数据
   fillAvoidanceTargetData(data.target_objects);
 
   // sort object order by longitudinal distance
+  // 按纵向距离对目标对象进行排序
   std::sort(data.target_objects.begin(), data.target_objects.end(), [](auto a, auto b) {
     return a.longitudinal < b.longitudinal;
   });

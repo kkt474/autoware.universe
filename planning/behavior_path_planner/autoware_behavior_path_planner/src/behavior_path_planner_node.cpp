@@ -30,11 +30,12 @@ namespace autoware::behavior_path_planner
 {
 using autoware::vehicle_info_utils::VehicleInfoUtils;
 using tier4_planning_msgs::msg::PathChangeModuleId;
-
+/// @brief 
+/// @param node_options 
 BehaviorPathPlannerNode::BehaviorPathPlannerNode(const rclcpp::NodeOptions & node_options)
 : Node("behavior_path_planner", node_options)
 {
-  using std::placeholders::_1;
+  using std::placeholders::_1;  
   using std::chrono_literals::operator""ms;
 
   // data_manager
@@ -48,7 +49,7 @@ BehaviorPathPlannerNode::BehaviorPathPlannerNode(const rclcpp::NodeOptions & nod
   turn_signal_publisher_ =
     create_publisher<TurnIndicatorsCommand>("~/output/turn_indicators_cmd", 1);
   hazard_signal_publisher_ = create_publisher<HazardLightsCommand>("~/output/hazard_lights_cmd", 1);
-  const auto durable_qos = rclcpp::QoS(1).transient_local();
+  const auto durable_qos = rclcpp::QoS(1).transient_local(); // 定义一个持久化的 QoS 设置，队列长度为 1，并且为临时本地的
   modified_goal_publisher_ =
     create_publisher<PoseWithUuidStamped>("~/output/modified_goal", durable_qos);
   stop_reason_publisher_ = create_publisher<StopReasonArray>("~/output/stop_reasons", 1);
@@ -61,72 +62,72 @@ BehaviorPathPlannerNode::BehaviorPathPlannerNode(const rclcpp::NodeOptions & nod
 
   bound_publisher_ = create_publisher<MarkerArray>("~/debug/bound", 1);
 
-  {
+  {// 定义两个字符串命名空间，用于存储路径候选和参考的主题前缀
     const std::string path_candidate_name_space = "/planning/path_candidate/";
     const std::string path_reference_name_space = "/planning/path_reference/";
 
     const std::lock_guard<std::mutex> lock(mutex_manager_);  // for planner_manager_
-
+   // 声明一个参数 slots，类型为字符串向量
     const auto slots = declare_parameter<std::vector<std::string>>("slots");
     /* cppcheck-suppress syntaxError */
     std::vector<std::vector<std::string>> slot_configuration{slots.size()};
     for (size_t i = 0; i < slots.size(); ++i) {
       const auto & slot = slots.at(i);
-      const auto modules = declare_parameter<std::vector<std::string>>(slot);
+      const auto modules = declare_parameter<std::vector<std::string>>(slot);//遍历 slots，为每个插槽声明模块参数
       for (const auto & module_name : modules) {
-        slot_configuration.at(i).push_back(module_name);
+        slot_configuration.at(i).push_back(module_name);//将每个模块名称添加到对应的插槽配置中
       }
     }
 
     planner_manager_ = std::make_shared<PlannerManager>(*this);
-
+    // 声明一个参数 launch_modules，并遍历其内容
     for (const auto & name : declare_parameter<std::vector<std::string>>("launch_modules")) {
       // workaround: Since ROS 2 can't get empty list, launcher set [''] on the parameter.
-      if (name == "") {
+      if (name == "") { //如果模块名称为空字符串，则跳出循环，这是 ROS 2 的一个工作区
         break;
       }
-      planner_manager_->launchScenePlugin(*this, name);
+      planner_manager_->launchScenePlugin(*this, name); // 启动场景插件
     }
 
     // NOTE: this needs to be after launchScenePlugin()
-    planner_manager_->configureModuleSlot(slot_configuration);
+    planner_manager_->configureModuleSlot(slot_configuration); // 配置模块插槽
 
     for (const auto & manager : planner_manager_->getSceneModuleManagers()) {
-      path_candidate_publishers_.emplace(
+      path_candidate_publishers_.emplace( // 遍历场景模块管理器，为每个管理器创建路径候选的发布者
         manager->name(), create_publisher<Path>(path_candidate_name_space + manager->name(), 1));
-      path_reference_publishers_.emplace(
+      path_reference_publishers_.emplace( // 为每个管理器创建路径参考的发布者
         manager->name(), create_publisher<Path>(path_reference_name_space + manager->name(), 1));
     }
   }
-
+   // 添加参数设置的回调函数，当参数被设置时调用 onSetParam 方法
   m_set_param_res = this->add_on_set_parameters_callback(
     std::bind(&BehaviorPathPlannerNode::onSetParam, this, std::placeholders::_1));
 
   // turn signal decider
   {
     const double turn_signal_intersection_search_distance =
-      planner_data_->parameters.turn_signal_intersection_search_distance;
+      planner_data_->parameters.turn_signal_intersection_search_distance; // 定义变量 turn_signal_intersection_search_distance，获取转向信号交叉口搜索距离
     const double turn_signal_intersection_angle_threshold_deg =
-      planner_data_->parameters.turn_signal_intersection_angle_threshold_deg;
-    const double turn_signal_search_time = planner_data_->parameters.turn_signal_search_time;
+      planner_data_->parameters.turn_signal_intersection_angle_threshold_deg;// 定义变量 turn_signal_intersection_angle_threshold_deg，获取转向信号交叉口角度阈值
+    const double turn_signal_search_time = planner_data_->parameters.turn_signal_search_time;//定义变量 turn_signal_search_time，获取转向信号搜索时间
     planner_data_->turn_signal_decider.setParameters(
       planner_data_->parameters.base_link2front, turn_signal_intersection_search_distance,
-      turn_signal_search_time, turn_signal_intersection_angle_threshold_deg);
+      turn_signal_search_time, turn_signal_intersection_angle_threshold_deg);//设置转向信号决策器的参数
   }
-
+// 创建 SteeringFactorInterface 的唯一指针，指向当前对象，并指定名称为 "intersection"
   steering_factor_interface_ptr_ = std::make_unique<SteeringFactorInterface>(this, "intersection");
 
   // Start timer
   {
-    const auto planning_hz = declare_parameter<double>("planning_hz");
-    const auto period_ns = rclcpp::Rate(planning_hz).period();
-    timer_ = rclcpp::create_timer(
+    const auto planning_hz = declare_parameter<double>("planning_hz"); // 获取规划频率
+    const auto period_ns = rclcpp::Rate(planning_hz).period(); // 计算基于规划频率的周期，单位为纳秒
+    timer_ = rclcpp::create_timer( // 创建一个定时器，每隔计算出的周期调用 run 方法
       this, get_clock(), period_ns, std::bind(&BehaviorPathPlannerNode::run, this));
   }
-
+ // 配置日志级别
   logger_configure_ = std::make_unique<autoware::universe_utils::LoggerLevelConfigure>(this);
   published_time_publisher_ =
-    std::make_unique<autoware::universe_utils::PublishedTimePublisher>(this);
+    std::make_unique<autoware::universe_utils::PublishedTimePublisher>(this);// 发布时间信息
 }
 
 std::vector<std::string> BehaviorPathPlannerNode::getWaitingApprovalModules()

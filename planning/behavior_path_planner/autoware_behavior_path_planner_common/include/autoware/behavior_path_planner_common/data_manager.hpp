@@ -180,13 +180,13 @@ struct PlannerData
     parameters.vehicle_info = vehicle_info;
     parameters.vehicle_width = vehicle_info.vehicle_width_m;
     parameters.vehicle_length = vehicle_info.vehicle_length_m;
-    parameters.wheel_tread = vehicle_info.wheel_tread_m;
-    parameters.wheel_base = vehicle_info.wheel_base_m;
+    parameters.wheel_tread = vehicle_info.wheel_tread_m; //  轮距
+    parameters.wheel_base = vehicle_info.wheel_base_m;   // 轴距
     parameters.front_overhang = vehicle_info.front_overhang_m;
     parameters.rear_overhang = vehicle_info.rear_overhang_m;
     parameters.left_over_hang = vehicle_info.left_overhang_m;
     parameters.right_over_hang = vehicle_info.right_overhang_m;
-    parameters.base_link2front = vehicle_info.max_longitudinal_offset_m;
+    parameters.base_link2front = vehicle_info.max_longitudinal_offset_m;//设置车辆前后基准链接的偏移量，后偏移量直接使用后悬的值
     parameters.base_link2rear = parameters.rear_overhang;
 
     // NOTE: backward_path_length is used not only calculating path length but also calculating the
@@ -196,6 +196,11 @@ struct PlannerData
     //       calculation of the drivable area in the autoware_path_optimizer package, the drivable
     //       area has to be a little longer than the backward_path_length parameter by adding
     //       min_backward_offset.
+    /*
+    注释解释了 backward_path_length 参数的用途，它不仅用于计算路径长度，还用于计算可行驶区域的大小。
+    为了确保可行驶区域涵盖整个车辆，后悬必须加到 backward_path_length 中，同时为了计算的准确性，
+    还需添加一个最小的后退偏移量
+    */
     constexpr double min_backward_offset = 1.0;
     const double backward_offset = vehicle_info.rear_overhang_m + min_backward_offset;
 

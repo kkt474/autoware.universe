@@ -24,7 +24,7 @@
 
   <node pkg="behavior_path_planner" exec="behavior_path_planner" name="behavior_path_planner" output="screen">
     <!-- topic remap -->
-    <remap from="~/input/route" to="/planning/scenario_planning/scenario"/>
+    <remap from="~/input/route" to="/planning/scenario_planning/scenario"/> 
     <remap from="~/input/vector_map" to="/map/vector_map"/>
     <remap from="~/input/perception" to="/perception/object_recognition/objects"/>
     <remap from="~/input/occupancy_grid_map" to="/perception/occupancy_grid_map/map"/>
