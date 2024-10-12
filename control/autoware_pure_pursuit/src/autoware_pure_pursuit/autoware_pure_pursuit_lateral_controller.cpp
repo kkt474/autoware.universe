@@ -110,9 +110,10 @@ double PurePursuitLateralController::calcLookaheadDistance(
   if (abs(lateral_error) >= param_.long_ld_lateral_error_threshold) {
     // If lateral error is higher than threshold, we should make ld larger to prevent entering the
     // road with high heading error.
+    // 如果横向误差高于阈值，我们应该使ld更大，以防止进入具有高航向误差的道路
     lateral_error_ld = abs(param_.ld_lateral_error_ratio * lateral_error);
   }
-
+// 总的预瞄距离，限幅 ld=k1*v-k2*kappa+k3*Err_y
   const double total_ld =
     std::clamp(vel_ld + curvature_ld + lateral_error_ld, min_ld, param_.max_lookahead_distance);
 
@@ -336,7 +337,7 @@ bool PurePursuitLateralController::isReady([[maybe_unused]] const InputData & in
 {
   return true;
 }
-
+// 计算纯跟踪前轮转角的外层函数
 LateralOutput PurePursuitLateralController::run(const InputData & input_data)
 {
   current_pose_ = input_data.current_odometry.pose.pose;
@@ -370,15 +371,15 @@ bool PurePursuitLateralController::calcIsSteerConverged(const Lateral & cmd)
   return std::abs(cmd.steering_tire_angle - current_steering_.steering_tire_angle) <
          static_cast<float>(param_.converged_steer_rad_);
 }
-
+// 计算前轮转角
 Lateral PurePursuitLateralController::generateOutputControlCmd()
 {
   // Generate the control command
-  const auto pp_output = calcTargetCurvature(true, current_odometry_.pose.pose);
+  const auto pp_output = calcTargetCurvature(true, current_odometry_.pose.pose);// 计算跟踪的曲率半径
   Lateral output_cmd;
 
   if (pp_output) {
-    output_cmd = generateCtrlCmdMsg(pp_output->curvature);
+    output_cmd = generateCtrlCmdMsg(pp_output->curvature); // 通过阿克曼转向几何计算得到前轮转角
     prev_cmd_ = boost::optional<Lateral>(output_cmd);
     publishDebugMarker();
   } else {

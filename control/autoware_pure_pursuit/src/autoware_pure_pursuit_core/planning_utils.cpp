@@ -67,6 +67,7 @@ double calcLateralError2D(
   const geometry_msgs::msg::Point & line_s, const geometry_msgs::msg::Point & line_e,
   const geometry_msgs::msg::Point & point)
 {
+  // 根据给定的线段和点的坐标，计算点到线的距离
   tf2::Vector3 a_vec((line_e.x - line_s.x), (line_e.y - line_s.y), 0.0);
   tf2::Vector3 b_vec((point.x - line_s.x), (point.y - line_s.y), 0.0);
 
@@ -75,6 +76,7 @@ double calcLateralError2D(
 }
 
 double calcRadius(
+// 计算下一路径点与汽车当前位置之间的圆弧曲率，这里利用的相对坐标和圆里面的直角三角形的相似来求得圆的半径，最后得到圆弧曲率
   const geometry_msgs::msg::Point & target, const geometry_msgs::msg::Pose & current_pose)
 {
   constexpr double RADIUS_MAX = 1e9;
@@ -82,7 +84,7 @@ double calcRadius(
   const double numerator = calcDistSquared2D(target, current_pose.position);
 
   if (fabs(denominator) > 0) {
-    return numerator / denominator;
+    return numerator / denominator;  // R = L^2/2y
   } else {
     return RADIUS_MAX;
   }
@@ -106,6 +108,7 @@ std::vector<geometry_msgs::msg::Pose> extractPoses(
 }
 
 // get closest point index from current pose
+// 找到规划的轨迹点中距离自车最近的点的index
 std::pair<bool, int32_t> findClosestIdxWithDistAngThr(
   const std::vector<geometry_msgs::msg::Pose> & poses,
   const geometry_msgs::msg::Pose & current_pose, double th_dist, double th_yaw)
@@ -114,15 +117,19 @@ std::pair<bool, int32_t> findClosestIdxWithDistAngThr(
   int32_t idx_min = -1;
 
   for (size_t i = 0; i < poses.size(); ++i) {
+    // 计算轨迹点到自车的欧式距离
     const double ds = calcDistSquared2D(poses.at(i).position, current_pose.position);
     if (ds > th_dist * th_dist) {
+      // 距离不得超过阈值
       continue;
     }
 
     const double yaw_pose = tf2::getYaw(current_pose.orientation);
     const double yaw_ps = tf2::getYaw(poses.at(i).orientation);
+    // 航向角误差统一到[-pi,pi]
     const double yaw_diff = normalizeEulerAngle(yaw_pose - yaw_ps);
     if (fabs(yaw_diff) > th_yaw) {
+    // 航向角误差不得超过阈值
       continue;
     }
 
@@ -155,6 +162,7 @@ int8_t getLaneDirection(const std::vector<geometry_msgs::msg::Pose> & poses, dou
     }
 
     if (planning_utils::calcDistSquared2D(prev.position, next.position) > th_dist * th_dist) {
+      // 转换成相对坐标，判断x大于0，则路径方向为正
       const auto rel_p = transformToRelativeCoordinate2D(next.position, prev);
       return (rel_p.x > 0.0) ? 0 : 1;
     }

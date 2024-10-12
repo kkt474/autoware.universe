@@ -54,10 +54,11 @@ std::pair<bool, double> PurePursuit::run()
   if (!isDataReady()) {
     return std::make_pair(false, std::numeric_limits<double>::quiet_NaN());
   }
-
+  
+// 找到规划的轨迹点距离自车最近的点的index
   auto closest_pair = planning_utils::findClosestIdxWithDistAngThr(
     *curr_wps_ptr_, *curr_pose_ptr_, closest_thr_dist_, closest_thr_ang_);
-
+// 规划轨迹中未能找过最近的点
   if (!closest_pair.first) {
     RCLCPP_WARN(
       logger, "cannot find, curr_bool: %d, closest_idx: %d", closest_pair.first,
@@ -65,7 +66,9 @@ std::pair<bool, double> PurePursuit::run()
     return std::make_pair(false, std::numeric_limits<double>::quiet_NaN());
   }
 
+// 找到预瞄点的index
   int32_t next_wp_idx = findNextPointIdx(closest_pair.second);
+// 没有找到预瞄点
   if (next_wp_idx == -1) {
     RCLCPP_WARN(logger, "lost next waypoint");
     return std::make_pair(false, std::numeric_limits<double>::quiet_NaN());
@@ -80,7 +83,7 @@ std::pair<bool, double> PurePursuit::run()
   } else {
     // linear interpolation
     std::pair<bool, geometry_msgs::msg::Point> lerp_pair = lerpNextTarget(next_wp_idx);
-
+// 插值没有找到预瞄点
     if (!lerp_pair.first) {
       RCLCPP_WARN(logger, "lost target! ");
       return std::make_pair(false, std::numeric_limits<double>::quiet_NaN());
@@ -89,7 +92,7 @@ std::pair<bool, double> PurePursuit::run()
     next_tgt_pos = lerp_pair.second;
   }
   loc_next_tgt_ = next_tgt_pos;
-
+// 计算曲率1/R，也就是纯跟踪算法自车转过的定圆
   double kappa = planning_utils::calcCurvature(next_tgt_pos, *curr_pose_ptr_);
 
   return std::make_pair(true, kappa);
@@ -105,15 +108,15 @@ std::pair<bool, geometry_msgs::msg::Point> PurePursuit::lerpNextTarget(int32_t n
 
   Eigen::Vector3d vec_a(
     (vec_end.x - vec_start.x), (vec_end.y - vec_start.y), (vec_end.z - vec_start.z));
-
+// 计算三维向量的范数(即向量的长度)，记录debug信息
   if (vec_a.norm() < ERROR2) {
     RCLCPP_ERROR(logger, "waypoint interval is almost 0");
     return std::make_pair(false, geometry_msgs::msg::Point());
   }
-
+// 根据给定的线段和点的坐标，计算点到直线的距离
   const double lateral_error =
     planning_utils::calcLateralError2D(vec_start, vec_end, curr_pose.position);
-
+// 横向误差大于预瞄距离，记录debug信息,并且直接返回计算失败
   if (fabs(lateral_error) > lookahead_distance_) {
     RCLCPP_ERROR(logger, "lateral error is larger than lookahead distance");
     RCLCPP_ERROR(
@@ -122,8 +125,9 @@ std::pair<bool, geometry_msgs::msg::Point> PurePursuit::lerpNextTarget(int32_t n
   }
 
   /* calculate the position of the foot of a perpendicular line */
+  // 根据横向距离计算垂直于路径线的垂足位置，并返回该位置作为插值结果
   Eigen::Vector2d uva2d(vec_a.x(), vec_a.y());
-  uva2d.normalize();
+  uva2d.normalize(); // 归一化，只保留方向信息
   Eigen::Rotation2Dd rot =
     (lateral_error > 0) ? Eigen::Rotation2Dd(-M_PI / 2.0) : Eigen::Rotation2Dd(M_PI / 2.0);
   Eigen::Vector2d uva2d_rot = rot * uva2d;
@@ -135,6 +139,7 @@ std::pair<bool, geometry_msgs::msg::Point> PurePursuit::lerpNextTarget(int32_t n
 
   // if there is a intersection
   if (fabs(fabs(lateral_error) - lookahead_distance_) < ERROR2) {
+    // 横向误差与预瞄距离之差的绝对值小于ERROR2，则表示垂足点就是目标点
     return std::make_pair(true, h);
   } else {
     // if there are two intersection
@@ -147,7 +152,7 @@ std::pair<bool, geometry_msgs::msg::Point> PurePursuit::lerpNextTarget(int32_t n
     return std::make_pair(true, res);
   }
 }
-
+// 找到预瞄点的index
 int32_t PurePursuit::findNextPointIdx(int32_t search_start_idx)
 {
   // if waypoints are not given, do nothing.
@@ -188,6 +193,7 @@ int32_t PurePursuit::findNextPointIdx(int32_t search_start_idx)
     const geometry_msgs::msg::Point & curr_pose_point = curr_pose_ptr_->position;
     // if there exists an effective waypoint
     const double ds = planning_utils::calcDistSquared2D(curr_motion_point, curr_pose_point);
+    // 找到规划轨迹中到自车位置的距离大于预瞄距离的点的index
     if (ds > std::pow(lookahead_distance_, 2)) {
       return i;
     }
