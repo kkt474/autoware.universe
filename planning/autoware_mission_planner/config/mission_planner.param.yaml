@@ -1,13 +1,13 @@
 /**:
   ros__parameters:
-    map_frame: map
-    arrival_check_angle_deg: 45.0
-    arrival_check_distance: 1.0
-    arrival_check_duration: 1.0
-    goal_angle_threshold_deg: 45.0
-    enable_correct_goal_pose: false
-    reroute_time_threshold: 10.0
-    minimum_reroute_length: 30.0
-    consider_no_drivable_lanes: false # This flag is for considering no_drivable_lanes in planning or not.
-    check_footprint_inside_lanes: true
-    allow_reroute_in_autonomous_mode: true
+    map_frame: map   #地图框架名称
+    arrival_check_angle_deg: 45.0  #目标检查的角度阈值  The frame name for map
+    arrival_check_distance: 1.0    #目标检查的距离阈值  Angle threshold for goal check
+    arrival_check_duration: 1.0    #目标检查的持续时间阈值  Distance threshold for goal check
+    goal_angle_threshold_deg: 45.0 #目标允许的最大目标角度 Duration threshold for goal check
+    enable_correct_goal_pose: false  #根据最近的小车道方向来校正目标位姿  Max goal pose angle for goal approve
+    reroute_time_threshold: 10.0     #如果以当前速度到达重新规划路线点的时间大于此阈值，则可以重新规划路线 If the time to the rerouting point at the current velocity is greater than this threshold, rerouting is possible
+    minimum_reroute_length: 30.0     #发布新路线的最小长度  Minimum Length for publishing a new route
+    consider_no_drivable_lanes: false # This flag is for considering no_drivable_lanes in planning or not.此标志用于在规划中考虑是否考虑no_drivable_lanes
+    check_footprint_inside_lanes: true  # 
+    allow_reroute_in_autonomous_mode: true #这是允许在自动驾驶模式下重新规划路线的标志。如果为 false，则重新规划路线失败。如果为 true，则仅允许安全重新规划路线 This is a flag to allow reroute in autonomous driving mode. If false, reroute fails. If true, only safe reroute is allowed
